@@ -1,69 +1,15 @@
-import re
 import graphene
-from graphene_django import DjangoObjectType
+from graphene_django.filter import DjangoFilterConnectionField
 from django.db import transaction
 from django.utils import timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from .schema_inputs import CreateCustomerInput, CreateOrderInput, CreateProductInput, BulkCustomerInput
+from .filters import CustomerFilter, ProductFilter, OrderFilter
 from .models import Customer, Product, Order
-
-class CustomerType(DjangoObjectType):
-    class Meta:
-        model = Customer
-        fields = "__all__"
+from .schema_types import CustomerType, ProductType, OrderType
+from .utils import validate_phone, to_decimal
 
 
-class ProductType(DjangoObjectType):
-    class Meta:
-        model = Product
-        fields = "__all__"
-
-
-class OrderType(DjangoObjectType):
-    class Meta:
-        model = Order
-        fields = "__all__"
-
-# =====================================================
-PHONE_RE = re.compile(r'^(\+?\d{7,15}|(\d{3}-\d{3}-\d{4}))$')
-
-
-def validate_phone(phone):
-    """Raise ValueError if phone provided and invalid."""
-    if phone and not PHONE_RE.match(phone):
-        raise ValueError("Invalid phone format. Use +1234567890 or 123-456-7890.")
-
-
-def to_decimal(value):
-    """Safely convert a float/str/int to Decimal or raise ValueError."""
-    try:
-        # Use str() to avoid float precision issues
-        return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
-        raise ValueError(f"Invalid decimal value: {value}")
-
-
-class CreateCustomerInput(graphene.InputObjectType):
-    name = graphene.String(required=True)
-    email = graphene.String(required=True)
-    phone = graphene.String(required=False)
-
-
-class BulkCustomerInput(graphene.InputObjectType):
-    name = graphene.String(required=True)
-    email = graphene.String(required=True)
-    phone = graphene.String(required=False)
-
-
-class CreateProductInput(graphene.InputObjectType):
-    name = graphene.String(required=True)
-    price = graphene.Float(required=True)  # client sends float; we'll convert safely
-    stock = graphene.Int(required=False, default_value=0)
-
-
-class CreateOrderInput(graphene.InputObjectType):
-    customer_id = graphene.ID(required=True)
-    product_ids = graphene.List(graphene.NonNull(graphene.ID), required=True)
-    order_date = graphene.DateTime(required=False)
 
 
 class CreateCustomer(graphene.Mutation):
@@ -186,18 +132,32 @@ class CreateOrder(graphene.Mutation):
             return CreateOrder(order=None, errors=[str(exc)])
 
 class Query(graphene.ObjectType):
-    all_customers = graphene.List(CustomerType)
-    all_products = graphene.List(ProductType)
-    all_orders = graphene.List(OrderType)
+    all_customers = DjangoFilterConnectionField(CustomerType, filterset_class=CustomerFilter)
+    all_products = DjangoFilterConnectionField(ProductType, filterset_class=ProductFilter)
+    all_orders = DjangoFilterConnectionField(OrderType, filterset_class=OrderFilter)
 
-    def resolve_all_customers(root, info):
-        return Customer.objects.all()
+    def resolve_all_customers(self, info, order_by=None, **kwargs):
+        qs = Customer.objects.all()
+        order = info.variable_values.get("orderBy")  
+        
+        if order:
+            qs = qs.order_by(order)
+        return qs
 
-    def resolve_all_products(root, info):
-        return Product.objects.all()
+    def resolve_all_products(self, info, order_by=None, **kwargs):
+        qs = Product.objects.all()
+        order = info.variable_values.get("orderBy")
+        if order:
+            qs = qs.order_by(order)
+        return qs
 
-    def resolve_all_orders(root, info):
-        return Order.objects.select_related("customer").prefetch_related("products").all()
+    def resolve_all_orders(self, info, order_by=None, **kwargs):
+        qs = Order.objects.select_related("customer").prefetch_related("products").all()
+        order = info.variable_values.get("orderBy")
+        if order:
+            qs = qs.order_by(order)
+        return qs
+
 
 
 class Mutation(graphene.ObjectType):

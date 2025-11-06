@@ -1,0 +1,10 @@
+
+2025-11-06 19:11:49.188095 - Found 8 orders in the last week
+   - Order ID: T3JkZXJUeXBlOjE=, Email: carol@example.com
+   - Order ID: T3JkZXJUeXBlOjI=, Email: alice@example.com
+   - Order ID: T3JkZXJUeXBlOjM=, Email: carol@example.com
+   - Order ID: T3JkZXJUeXBlOjQ=, Email: alice@example.com
+   - Order ID: T3JkZXJUeXBlOjU=, Email: alice@example.com
+   - Order ID: T3JkZXJUeXBlOjY=, Email: alice@example.com
+   - Order ID: T3JkZXJUeXBlOjc=, Email: alice@example.com
+   - Order ID: T3JkZXJUeXBlOjg=, Email: alice@example.com

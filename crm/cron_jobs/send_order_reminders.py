@@ -1,50 +1,59 @@
 #!/usr/bin/env python3
 import os
-from datetime import datetime
-import requests
+from datetime import datetime, timedelta
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
 
-GRAPHQL_URL = "http://127.0.0.1:8000/graphql"
+GRAPHQL_URL = "http://localhost:8000/graphql"
 
-query = """
-query {
-  allOrders {
+today = datetime.now()
+week_ago = today - timedelta(days=7)
+
+query = gql("""
+query GetRecentOrders($afterDate: DateTime!) {
+  allOrders(orderDate_Gte: $afterDate) {
     edges {
       node {
         id
         customer {
-          name
           email
         }
-        totalAmount
+        orderDate
       }
     }
   }
 }
-"""
+""")
 
-# absolute path for logs
+
+transport = RequestsHTTPTransport(
+    url=GRAPHQL_URL,
+    verify=False,
+    retries=3,
+)
+client = Client(transport=transport, fetch_schema_from_transport=False)
+
 project_root = os.path.join(os.getcwd(), "crm", "cron_jobs")
 os.makedirs(project_root, exist_ok=True)
 log_path = os.path.join(project_root, "order_reminders_log.txt")
 
 try:
-    response = requests.post(GRAPHQL_URL, json={"query": query})
-    response.raise_for_status()
+    variables = {"afterDate": week_ago.isoformat()}
+    response = client.execute(query, variable_values=variables)
 
-    data = response.json()
-    orders = data.get("data", {}).get("allOrders", {}).get("edges", [])
+    orders = response.get("allOrders", {}).get("edges", [])
 
     with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"\n{datetime.now()} - Retrieved {len(orders)} orders\n")
+        f.write(f"\n{datetime.now()} - Found {len(orders)} orders in the last week\n")
         for order in orders:
             node = order["node"]
-            customer = node.get("customer", {}).get("name", "Unknown")
-            total = node.get("totalAmount", "0.00")
-            f.write(f"   - {customer}: GHS {total}\n")
+            order_id = node["id"]
+            email = node["customer"]["email"]
+            f.write(f"   - Order ID: {order_id}, Email: {email}\n")
 
-    print(f"Logged {len(orders)} orders to {log_path}")
+    print("Order reminders processed!")
 
 except Exception as e:
     with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"\n{datetime.now()} -  Error: {str(e)}\n")
-    print("Error logged:", e)
+        f.write(f"\n{datetime.now()} - Error: {e}\n")
+    print("Error occurred while processing order reminders:", e)

@@ -159,9 +159,36 @@ class Query(graphene.ObjectType):
         return qs
 
 
+class UpdateLowStockProducts(graphene.Mutation):
+    class Arguments:
+        increment = graphene.Int(required=False, default_value=10)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    updated_products = graphene.List(ProductType)
+
+    def mutate(self, info, increment):
+        low_stock_products = Product.objects.filter(stock__lt=10)
+        updated = []
+
+        for product in low_stock_products:
+            product.stock += increment
+            product.save()
+            updated.append(product)
+
+        if updated:
+            msg = f"{len(updated)} products restocked successfully."
+            return UpdateLowStockProducts(
+                success=True, message=msg, updated_products=updated
+            )
+        else:
+            return UpdateLowStockProducts(
+                success=False, message="No low-stock products found.", updated_products=[]
+            )
 
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
     bulk_create_customers = BulkCreateCustomers.Field()
     create_product = CreateProduct.Field()
     create_order = CreateOrder.Field()
+    update_low_stock_products = UpdateLowStockProducts.Field()

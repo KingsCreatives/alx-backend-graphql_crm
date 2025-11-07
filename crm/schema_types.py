@@ -22,5 +22,10 @@ class OrderType(DjangoObjectType):
         fields = "__all__"
         interfaces = (graphene.relay.Node,)
 
+# class ProductType(graphene.ObjectType):
+#     id = graphene.ID()
+#     name = graphene.String()
+#     stock = graphene.Int()
+
 
 
